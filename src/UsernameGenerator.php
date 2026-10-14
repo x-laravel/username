@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Str;
 use XLaravel\Username\Rules\NotReserved;
 
-final class Username
+final class UsernameGenerator
 {
     public static function normalize(string $value, ?Format $format = null): string
     {

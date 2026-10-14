@@ -3,11 +3,12 @@
 namespace XLaravel\Username\Concerns;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Str;
 use XLaravel\Username\Events\UsernameChanged;
 use XLaravel\Username\Format;
-use XLaravel\Username\Username;
+use XLaravel\Username\UsernameGenerator;
 
 /**
  * @mixin Model
@@ -29,6 +30,28 @@ trait HasUsername
             /** @var Model&self $model */
             $model->announceUsernameChange();
         });
+    }
+
+    /**
+     * @param  array{touch?: bool|null}  $options
+     */
+    public function save(array $options = []): bool
+    {
+        for ($attempt = 1; ; $attempt++) {
+            $generating = ! $this->hasUsername();
+
+            try {
+                return $this->getConnection()->transactionLevel() > 0
+                    ? $this->getConnection()->transaction(fn () => parent::save($options))
+                    : parent::save($options);
+            } catch (UniqueConstraintViolationException $exception) {
+                if (! $generating || $attempt >= 3 || ! str_contains($exception->getMessage(), $this->usernameColumn())) {
+                    throw $exception;
+                }
+
+                $this->setAttribute($this->usernameColumn(), null);
+            }
+        }
     }
 
     public function initializeHasUsername(): void
@@ -73,13 +96,20 @@ trait HasUsername
             ->exists();
     }
 
+    protected function hasUsername(): bool
+    {
+        $value = $this->getAttribute($this->usernameColumn());
+
+        return is_string($value) && trim($value) !== '';
+    }
+
     protected function prepareUsername(): void
     {
         $column = $this->usernameColumn();
         $value = $this->getAttribute($column);
 
-        if (! is_string($value) || trim($value) === '') {
-            $this->setAttribute($column, Username::generate($this->usernameSource(), $this->usernameTaken(...)));
+        if (! is_string($value) || ! $this->hasUsername()) {
+            $this->setAttribute($column, UsernameGenerator::generate($this->usernameSource(), $this->usernameTaken(...)));
 
             return;
         }

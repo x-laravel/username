@@ -104,9 +104,10 @@ ignores case, dots, hyphens and underscores, so `ad.min` and `Ad-Min` count as `
 
 ```php
 use App\Models\User;
-use XLaravel\Username\Username;
+use Illuminate\Support\Str;
+use XLaravel\Username\UsernameGenerator;
 
-$username = Username::generate(
+$username = UsernameGenerator::generate(
     Str::before($email, '@'),
     fn (string $candidate) => User::where('username', $candidate)->exists(),
 );
@@ -122,8 +123,8 @@ characters into a hyphen (an underscore when hyphens are off), collapses repeate
 and separators from the edges and cuts the result to the maximum length.
 
 ```php
-Username::normalize('Iğdır Şükrü');      // igdir-sukru
-Username::normalize('ahmet.can+promo');  // ahmet.can-promo
+UsernameGenerator::normalize('Iğdır Şükrü');      // igdir-sukru
+UsernameGenerator::normalize('ahmet.can+promo');  // ahmet.can-promo
 ```
 
 When digit-only usernames are not allowed, `generate()` puts the fallback in front of them, so
@@ -158,9 +159,18 @@ The trait works on the `username` column. To use another one, set a property on 
 protected string $usernameColumn = 'handle';
 ```
 
-Override `usernameColumn()` instead when the column has to be decided at runtime. Availability is checked with
-`usernameTaken()`, which ignores global scopes (soft-deleted rows still count) and the model's own
-row; override it to scope the check differently.
+Override `usernameColumn()` instead when the column has to be decided at runtime.
+
+Availability is checked with `usernameTaken()`, which ignores global scopes (soft-deleted rows still
+count) and the model's own row; override it to scope the check differently.
+
+Two requests can pick the same free username at the same moment. When the trait generated the
+username and the insert then fails on the username's unique index, it generates a new one and tries
+again, up to three times. A username that was given rather than generated is never retried — the
+`unique` validation rule is the place for that. Inside an open transaction the insert runs in a
+savepoint, so a failed attempt does not break the surrounding transaction. The retry lives in the
+trait's `save()` method; if your model overrides `save()` itself, call `parent::save()` from it to
+keep the retry.
 
 ### Reacting to a changed username
 
@@ -217,8 +227,9 @@ $request->validate([
 ]);
 ```
 
-Both aliases use the config. Laravel resolves their messages like any extended rule, so add lines to
-your application's `lang/xx/validation.php`, or pass inline messages.
+Both aliases use the config. `not_reserved_username` also takes extra names as parameters:
+`not_reserved_username:acme,beta`. Laravel resolves the aliases' messages like any extended rule, so
+add lines to your application's `lang/xx/validation.php`, or pass inline messages.
 
 ## Customising the messages
 

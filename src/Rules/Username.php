@@ -4,6 +4,7 @@ namespace XLaravel\Username\Rules;
 
 use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
+use Illuminate\Support\Facades\Lang;
 use XLaravel\Username\Format;
 
 class Username implements ValidationRule
@@ -106,7 +107,7 @@ class Username implements ValidationRule
 
     private function translate(string $key): string
     {
-        $line = __('username::validation.' . $key);
+        $line = Lang::get('username::validation.' . $key);
 
         return is_string($line) ? $line : $key;
     }

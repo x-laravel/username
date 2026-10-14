@@ -53,6 +53,16 @@ class NotReservedRuleTest extends TestCase
         $this->assertTrue(Validator::make(['username' => 'ahmet'], ['username' => 'not_reserved_username'])->passes());
     }
 
+    public function testStringAliasTakesExtraNames(): void
+    {
+        $rules = ['username' => 'not_reserved_username:aqtivite,beta'];
+
+        $this->assertTrue(Validator::make(['username' => 'aqtivite'], $rules)->fails());
+        $this->assertTrue(Validator::make(['username' => 'be.ta'], $rules)->fails());
+        $this->assertTrue(Validator::make(['username' => 'admin'], $rules)->fails());
+        $this->assertTrue(Validator::make(['username' => 'ahmet'], $rules)->passes());
+    }
+
     /** @return array<string, array{string}> */
     public static function reservedValues(): array
     {

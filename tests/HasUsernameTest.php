@@ -5,6 +5,7 @@ namespace XLaravel\Username\Tests;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -24,6 +25,7 @@ class HasUsernameTest extends TestCase
         parent::setUp();
 
         MemberObserver::$heard = [];
+        RacyMember::$misses = 0;
 
         Schema::create('members', function (Blueprint $table) {
             $table->id();
@@ -241,6 +243,46 @@ class HasUsernameTest extends TestCase
         $this->assertSame('username', (new Member)->usernameColumn());
     }
 
+        public function testRetriesWhenAGeneratedUsernameIsTakenMeanwhile(): void
+    {
+        Member::create(['name' => 'Ahmet Can']);
+        RacyMember::$misses = 1;
+
+        $this->assertSame('ahmet-can1', RacyMember::create(['name' => 'Ahmet Can'])->username);
+    }
+
+    public function testGivesUpAfterThreeAttempts(): void
+    {
+        Member::create(['name' => 'Ahmet Can']);
+        RacyMember::$misses = 3;
+
+        $this->expectException(UniqueConstraintViolationException::class);
+
+        RacyMember::create(['name' => 'Ahmet Can']);
+    }
+
+    public function testDoesNotRetryAUsernameThatWasGiven(): void
+    {
+        Member::create(['username' => 'ahmet']);
+
+        $this->expectException(UniqueConstraintViolationException::class);
+
+        Member::create(['username' => 'ahmet']);
+    }
+
+    public function testARetryKeepsTheSurroundingTransactionUsable(): void
+    {
+        Member::create(['name' => 'Ahmet Can']);
+        RacyMember::$misses = 1;
+
+        DB::transaction(function () {
+            RacyMember::create(['name' => 'Ahmet Can']);
+            Member::create(['username' => 'mehmet']);
+        });
+
+        $this->assertSame(['ahmet-can', 'ahmet-can1', 'mehmet'], Member::query()->orderBy('id')->pluck('username')->all());
+    }
+
         /**
      * @return \ArrayObject<int, UsernameChanged>
      */
@@ -275,6 +317,24 @@ class Member extends Model
         $name = $this->getAttribute('name');
 
         return is_string($name) ? $name : '';
+    }
+}
+
+class RacyMember extends Member
+{
+    public static int $misses = 0;
+
+    protected $table = 'members';
+
+    public function usernameTaken(string $candidate): bool
+    {
+        if (self::$misses > 0) {
+            self::$misses--;
+
+            return false;
+        }
+
+        return parent::usernameTaken($candidate);
     }
 }
 

@@ -27,6 +27,10 @@ class UsernameServiceProvider extends ServiceProvider
 
         Validator::extend('username', fn (string $attribute, mixed $value) => Format::fromConfig()->violation($value) === null);
 
-        Validator::extend('not_reserved_username', fn (string $attribute, mixed $value) => ! is_string($value) || ! NotReserved::isReserved($value));
+        Validator::extend(
+            'not_reserved_username',
+            fn (string $attribute, mixed $value, array $parameters) => ! is_string($value)
+                || ! NotReserved::isReserved($value, array_values(array_filter($parameters, is_string(...)))),
+        );
     }
 }
