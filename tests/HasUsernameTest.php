@@ -31,6 +31,12 @@ class HasUsernameTest extends TestCase
             $table->string('username')->unique();
             $table->softDeletes();
         });
+
+        Schema::create('accounts', function (Blueprint $table) {
+            $table->id();
+            $table->string('name')->nullable();
+            $table->string('handle')->unique();
+        });
     }
 
     public function testGeneratesAUsernameFromTheSourceWhenEmpty(): void
@@ -206,6 +212,35 @@ class HasUsernameTest extends TestCase
         $this->assertSame(['ahmet.can'], $heard->getArrayCopy());
     }
 
+        public function testTheColumnCanBeSetWithAProperty(): void
+    {
+        $account = Account::create(['name' => 'Ahmet Can']);
+
+        $this->assertSame('handle', $account->usernameColumn());
+        $this->assertSame('ahmet-can', $account->handle);
+        $this->assertSame('ahmet-can1', Account::create(['name' => 'Ahmet Can'])->handle);
+        $this->assertSame('ahmet.can', Account::create(['handle' => 'Ahmet.Can'])->handle);
+    }
+
+    public function testChangesToACustomColumnAreAnnounced(): void
+    {
+        $events = $this->recordEvents();
+        $account = Account::create(['handle' => 'ahmet']);
+
+        $account->update(['handle' => 'ahmet.can']);
+
+        $this->assertCount(1, $events);
+        $event = $events[0];
+        $this->assertInstanceOf(UsernameChanged::class, $event);
+        $this->assertSame('ahmet', $event->old);
+        $this->assertSame('ahmet.can', $event->new);
+    }
+
+    public function testTheColumnDefaultsToUsername(): void
+    {
+        $this->assertSame('username', (new Member)->usernameColumn());
+    }
+
         /**
      * @return \ArrayObject<int, UsernameChanged>
      */
@@ -234,6 +269,28 @@ class Member extends Model
     public $timestamps = false;
 
     protected $guarded = [];
+
+    public function usernameSource(): string
+    {
+        $name = $this->getAttribute('name');
+
+        return is_string($name) ? $name : '';
+    }
+}
+
+/**
+ * @property string $handle
+ * @property string|null $name
+ */
+class Account extends Model
+{
+    use HasUsername;
+
+    public $timestamps = false;
+
+    protected $guarded = [];
+
+    protected string $usernameColumn = 'handle';
 
     public function usernameSource(): string
     {

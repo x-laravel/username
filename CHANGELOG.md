@@ -15,7 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Username::normalize()` and `Username::generate()` to turn any text into a free username that
   passes the format rule.
 - `rules.numeric` option to reject usernames made of digits only.
-- `Concerns\HasUsername` model trait that generates a missing username and lowercases a changed one.
+- `Concerns\HasUsername` model trait that generates a missing username and lowercases a changed one;
+  the column defaults to `username` and can be set with a `$usernameColumn` property.
 - `Events\UsernameChanged`, dispatched after commit when a saved username changes.
 - `usernameChanging` and `usernameChanged` model events for observers; `usernameChanging` can
   cancel the save.

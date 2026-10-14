@@ -151,7 +151,14 @@ On every save the trait:
 - lowercases a username that was set or changed, unless uppercase is allowed.
 
 A username that did not change is left alone, so existing rows are never rewritten behind your back.
-Override `usernameColumn()` when the column is not called `username`. Availability is checked with
+
+The trait works on the `username` column. To use another one, set a property on the model:
+
+```php
+protected string $usernameColumn = 'handle';
+```
+
+Override `usernameColumn()` instead when the column has to be decided at runtime. Availability is checked with
 `usernameTaken()`, which ignores global scopes (soft-deleted rows still count) and the model's own
 row; override it to scope the check differently.
 

@@ -54,7 +54,9 @@ trait HasUsername
 
     public function usernameColumn(): string
     {
-        return 'username';
+        $column = property_exists($this, 'usernameColumn') ? $this->usernameColumn : null;
+
+        return is_string($column) && $column !== '' ? $column : 'username';
     }
 
     public function usernameSource(): string
