@@ -16,7 +16,7 @@ that passes the format rule.
 
 | Package version | PHP | Laravel |
 |-----------------|-----|---------|
-| 1.x | 8.2+ | 12, 13 |
+| 1.x | 8.3+ | 12, 13 |
 
 ## Installation
 
