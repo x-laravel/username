@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0] - 2026-10-14
 
 ### Added
 
@@ -23,3 +23,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cancel the save.
 - `username` and `not_reserved_username` string aliases; the latter takes extra names as parameters.
 - Turkish and English messages, publishable config and translations.
+
+[1.0.0]: https://github.com/X-Laravel/username/releases/tag/v1.0.0
