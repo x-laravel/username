@@ -7,6 +7,7 @@ return [
     'min' => ':attribute en az :min karakter olmalıdır.',
     'max' => ':attribute en fazla :max karakter olabilir.',
     'reserved' => ':attribute olarak bu ad kullanılamaz.',
+    'taken' => ':attribute başka bir hesap tarafından kullanılıyor.',
 
     'letters' => 'İngilizce harf',
     'lowercase_letters' => 'küçük İngilizce harf',

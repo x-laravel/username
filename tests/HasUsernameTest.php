@@ -2,6 +2,7 @@
 
 namespace XLaravel\Username\Tests;
 
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Schema\Blueprint;
@@ -10,8 +11,12 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Validator;
+use InvalidArgumentException;
 use XLaravel\Username\Concerns\HasUsername;
 use XLaravel\Username\Events\UsernameChanged;
+use XLaravel\Username\Models\UsernameHistory;
+use XLaravel\Username\Rules\UniqueUsername;
 
 class HasUsernameTest extends TestCase
 {
@@ -26,6 +31,12 @@ class HasUsernameTest extends TestCase
 
         MemberObserver::$heard = [];
         RacyMember::$misses = 0;
+
+        $migration = require __DIR__ . '/../database/migrations/2026_10_14_000000_create_username_history_table.php';
+
+        if (is_object($migration) && method_exists($migration, 'up')) {
+            $migration->up();
+        }
 
         Schema::create('members', function (Blueprint $table) {
             $table->id();
@@ -283,7 +294,197 @@ class HasUsernameTest extends TestCase
         $this->assertSame(['ahmet-can', 'ahmet-can-2', 'mehmet'], Member::query()->orderBy('id')->pluck('username')->all());
     }
 
-        /**
+        public function testRecordsTheOldUsernameAndResolvesIt(): void
+    {
+        $member = Member::create(['username' => 'ahmet']);
+        $member->update(['username' => 'ahmet.can']);
+
+        $this->assertSame(['ahmet'], UsernameHistory::query()->pluck('username')->all());
+        $this->assertTrue(Member::findByUsername('ahmet')?->is($member));
+        $this->assertTrue(Member::findByUsername('ahmet.can')?->is($member));
+        $this->assertNull(Member::findByUsername('baska'));
+        $this->assertSame(1, Member::query()->whereUsername('ahmet')->whereKey($member->getKey())->count());
+    }
+
+    public function testRouteBindingFollowsTheHistory(): void
+    {
+        $member = new class extends Member {
+            protected $table = 'members';
+
+            public function getRouteKeyName(): string
+            {
+                return 'username';
+            }
+        };
+        $member->fill(['username' => 'ahmet'])->save();
+        $member->update(['username' => 'ahmet.can']);
+
+        $this->assertTrue((new $member)->resolveRouteBinding('ahmet')?->is($member));
+    }
+
+    public function testAnOldUsernameIsReservedForItsOwner(): void
+    {
+        Member::create(['username' => 'ahmet'])->update(['username' => 'ahmet.can']);
+
+        $this->assertTrue((new Member)->usernameTaken('ahmet'));
+        $this->assertSame('ahmet-2', Member::create(['name' => 'Ahmet'])->username);
+    }
+
+    public function testTheReservationEndsAfterItsPeriod(): void
+    {
+        $member = Member::create(['username' => 'ahmet']);
+        $member->update(['username' => 'ahmet.can']);
+
+        $this->travel(91)->days();
+
+        $other = Member::create(['name' => 'Ahmet']);
+
+        $this->assertSame('ahmet', $other->username);
+        $this->assertTrue(Member::findByUsername('ahmet')?->is($other));
+        $this->assertSame(0, UsernameHistory::query()->where('username', 'ahmet')->count());
+    }
+
+    public function testANullReservationNeverEndsAndAZeroOneReservesNothing(): void
+    {
+        Config::set('username.history.reserve_for', null);
+        Member::create(['username' => 'ahmet'])->update(['username' => 'ahmet.can']);
+        $this->travel(5000)->days();
+        $this->assertTrue((new Member)->usernameTaken('ahmet'));
+
+        Config::set('username.history.reserve_for', 0);
+        $this->assertFalse((new Member)->usernameTaken('ahmet'));
+    }
+
+    public function testTheModelCanSetItsOwnReservation(): void
+    {
+        $member = new class extends Member {
+            protected $table = 'members';
+
+            protected ?int $usernameReservedFor = 10;
+        };
+
+        $this->assertSame(10, $member->usernameReservedFor());
+    }
+
+    public function testAnOwnerCanReturnToAnOldUsername(): void
+    {
+        $member = Member::create(['username' => 'ahmet']);
+        $member->update(['username' => 'ahmet.can']);
+
+        $member->update(['username' => 'ahmet']);
+
+        $this->assertSame(['ahmet.can'], UsernameHistory::query()->pluck('username')->all());
+    }
+
+    public function testHistoryCanBeTurnedOff(): void
+    {
+        Config::set('username.history.enabled', false);
+        Member::create(['username' => 'ahmet'])->update(['username' => 'ahmet.can']);
+
+        $this->assertSame(0, UsernameHistory::query()->count());
+        $this->assertNull(Member::findByUsername('ahmet'));
+        $this->assertFalse((new Member)->usernameTaken('ahmet'));
+    }
+
+    public function testHistoryCanBeTurnedOffOnTheModel(): void
+    {
+        $member = new class extends Member {
+            protected $table = 'members';
+
+            protected bool $usernameHistory = false;
+        };
+
+        $member->fill(['username' => 'ahmet'])->save();
+        $member->update(['username' => 'ahmet.can']);
+
+        $this->assertSame(0, UsernameHistory::query()->count());
+    }
+
+    public function testAForceDeletedMemberLeavesNoHistory(): void
+    {
+        $member = Member::create(['username' => 'ahmet']);
+        $member->update(['username' => 'ahmet.can']);
+
+        $member->delete();
+        $this->assertSame(1, UsernameHistory::query()->count());
+
+        $member->forceDelete();
+        $this->assertSame(0, UsernameHistory::query()->count());
+    }
+
+    public function testOldHistoryIsPruned(): void
+    {
+        $member = Member::create(['username' => 'ahmet']);
+        $member->update(['username' => 'ahmet.can']);
+        $this->travel(366)->days();
+        $member->update(['username' => 'ahmet.yeni']);
+
+        $this->artisan('model:prune', ['--model' => [UsernameHistory::class]]);
+
+        $this->assertSame(['ahmet.can'], UsernameHistory::query()->pluck('username')->all());
+    }
+
+    public function testThePackageSchedulesPruning(): void
+    {
+        $daily = $this->pruningEvent();
+        $this->assertNotNull($daily);
+        $this->assertSame('0 0 * * *', $daily->expression);
+
+        Config::set('username.history.prune_schedule', '30 3 * * 1');
+        $weekly = $this->pruningEvent();
+        $this->assertNotNull($weekly);
+        $this->assertSame('30 3 * * 1', $weekly->expression);
+
+        Config::set('username.history.prune_schedule', null);
+        $this->assertNull($this->pruningEvent());
+
+        Config::set('username.history.prune_schedule', 'daily');
+        Config::set('username.history.prune_after', null);
+        $this->assertNull($this->pruningEvent());
+    }
+
+    public function testAnUnknownPruneFrequencyIsRejected(): void
+    {
+        Config::set('username.history.prune_schedule', 'sometimes');
+
+        $this->expectException(InvalidArgumentException::class);
+
+        $this->pruningEvent();
+    }
+
+    public function testUniqueUsernameSeesLiveAndReservedUsernames(): void
+    {
+        $member = Member::create(['username' => 'ahmet']);
+        $member->update(['username' => 'ahmet.can']);
+        \Illuminate\Support\Facades\App::setLocale('tr');
+
+        $rule = ['username' => new UniqueUsername(Member::class)];
+
+        $this->assertSame(
+            'username başka bir hesap tarafından kullanılıyor.',
+            Validator::make(['username' => 'Ahmet.Can'], $rule)->errors()->first('username'),
+        );
+        $this->assertTrue(Validator::make(['username' => 'ahmet'], $rule)->fails());
+        $this->assertTrue(Validator::make(['username' => 'mehmet'], $rule)->passes());
+        $this->assertTrue(Validator::make(['username' => 'ahmet'], ['username' => new UniqueUsername($member)])->passes());
+    }
+
+    private function pruningEvent(): ?\Illuminate\Console\Scheduling\Event
+    {
+        $app = $this->app;
+        $this->assertNotNull($app);
+        $app->forgetInstance(Schedule::class);
+
+        foreach ($app->make(Schedule::class)->events() as $event) {
+            if (str_contains((string) $event->command, 'model:prune')) {
+                return $event;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * @return \ArrayObject<int, UsernameChanged>
      */
     private function recordEvents(): \ArrayObject

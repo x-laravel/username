@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the column defaults to `username` and can be set with a `$usernameColumn` property. A generated
   username that loses a race on the unique index is regenerated and retried up to three times.
 - `Events\UsernameChanged`, dispatched after commit when a saved username changes.
+- Username history: old usernames resolve through `whereUsername()`, `findByUsername()` and route
+  model binding, stay reserved for their owner for a configurable period and are pruned through
+  `model:prune`, scheduled by the package.
+- `Rules\UniqueUsername` rule that also sees reserved usernames.
 - `usernameChanging` and `usernameChanged` model events for observers; `usernameChanging` can
   cancel the save.
 - `username` and `not_reserved_username` string aliases; the latter takes extra names as parameters.

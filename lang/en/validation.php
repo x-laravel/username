@@ -7,6 +7,7 @@ return [
     'min' => 'The :attribute field must be at least :min characters.',
     'max' => 'The :attribute field must not be greater than :max characters.',
     'reserved' => 'This name cannot be used as the :attribute.',
+    'taken' => 'The :attribute is already in use.',
 
     'letters' => 'letters',
     'lowercase_letters' => 'lowercase letters',

@@ -70,4 +70,43 @@ return [
         'kayit', 'kullanici', 'odeme', 'profil', 'resmi', 'sistem', 'yardim', 'yonetici', 'yonetim',
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Username History
+    |--------------------------------------------------------------------------
+    |
+    | When a username changes, the old one is kept so that old profile links
+    | still find the account, and so that nobody else can take it right away.
+    | A model can opt out with a $usernameHistory property.
+    |
+    | enabled         Keep old usernames and resolve them. When disabled,
+    |                 nothing is written, old usernames are not resolved and
+    |                 nothing is reserved; existing rows are left as they are.
+    | connection      Database connection of the history table. Use the same
+    |                 connection as your models so both are written in one
+    |                 transaction. Null uses the default connection.
+    | table           Name of the history table.
+    | reserve_for     Days an old username stays reserved for its owner; no
+    |                 one else can take it in that time. Null reserves it for
+    |                 as long as the row exists, 0 does not reserve it at all.
+    |                 A model can override it with a $usernameReservedFor
+    |                 property.
+    | prune_after     Days after which history rows are deleted. Null keeps
+    |                 them forever.
+    | prune_schedule  How often the package schedules model:prune for the
+    |                 history table: a schedule frequency such as "daily" or
+    |                 "hourly", or a cron expression. Null leaves scheduling
+    |                 to you.
+    |
+    */
+
+    'history' => [
+        'enabled' => true,
+        'connection' => null,
+        'table' => 'username_history',
+        'reserve_for' => 90,
+        'prune_after' => 365,
+        'prune_schedule' => 'daily',
+    ],
+
 ];

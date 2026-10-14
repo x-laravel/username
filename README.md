@@ -22,9 +22,12 @@ that passes the format rule.
 
 ```bash
 composer require x-laravel/username
+php artisan vendor:publish --tag=username-migrations
+php artisan migrate
 ```
 
-The service provider is registered through package discovery. Publish the config to change the
+The migration creates the username history table. The service provider is registered through
+package discovery. Publish the config to change the
 defaults:
 
 ```bash
@@ -52,6 +55,12 @@ Every part of it is a config key in `config/username.php`:
 | `rules.numeric` | `true` | Allow usernames made of digits only |
 | `fallback` | `'user'` | Base the generator uses when nothing usable is left of its input |
 | `reserved` | see the file | Names the reserved-name rule rejects |
+| `history.enabled` | `true` | Keep and resolve old usernames |
+| `history.connection` | `null` | Connection of the history table |
+| `history.table` | `'username_history'` | Name of the history table |
+| `history.reserve_for` | `90` | Days an old username stays reserved for its owner |
+| `history.prune_after` | `365` | Days after which history rows are pruned |
+| `history.prune_schedule` | `'daily'` | Frequency or cron expression of the pruning job; `null` to schedule it yourself |
 
 Letters outside the English alphabet are never allowed, so a username always fits in a URL without
 encoding.
@@ -172,6 +181,43 @@ again, up to three times. A username that was given rather than generated is nev
 savepoint, so a failed attempt does not break the surrounding transaction. The retry lives in the
 trait's `save()` method; if your model overrides `save()` itself, call `parent::save()` from it to
 keep the retry.
+
+### Username history
+
+When a username changes, the old one is written to the history table, so old profile links keep
+finding the account and nobody else can take the name right away. Looking an account up by
+username checks both the current username and the history:
+
+```php
+$user = User::findByUsername($username);
+
+$user = User::query()->whereUsername($username)->firstOrFail();
+```
+
+Route model binding follows the history too when the route key is the username column.
+
+An old username stays reserved for its owner for `reserve_for` days: no other account can take it,
+and the generator skips it. The owner can always go back to it. When the period ends another
+account may take the name; the history row is then removed and the name belongs to the new account.
+A model can override the period with a `$usernameReservedFor` property, or opt out of the history
+with `$usernameHistory = false`.
+
+Rows older than `prune_after` days are deleted by Laravel's `model:prune` command, which the package
+schedules daily for the history table; change it with `history.prune_schedule`. Force-deleting an
+account removes its history; soft-deleting keeps it.
+
+Laravel's `unique` rule cannot see the history table. Use `UniqueUsername`, which checks both live
+and reserved usernames and ignores the given account's own names:
+
+```php
+use XLaravel\Username\Rules\UniqueUsername;
+
+$request->validate([
+    'username' => ['required', new Username, new UniqueUsername($request->user())],
+]);
+```
+
+Pass the class name instead of an instance for a new account.
 
 ### Reacting to a changed username
 
