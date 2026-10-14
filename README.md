@@ -155,6 +155,53 @@ Override `usernameColumn()` when the column is not called `username`. Availabili
 `usernameTaken()`, which ignores global scopes (soft-deleted rows still count) and the model's own
 row; override it to scope the check differently.
 
+### Reacting to a changed username
+
+When a saved username changes, the trait dispatches `XLaravel\Username\Events\UsernameChanged` with
+the model and the old and new usernames — handy for redirecting old profile links, clearing caches
+or writing an audit entry:
+
+```php
+use XLaravel\Username\Events\UsernameChanged;
+
+Event::listen(function (UsernameChanged $event) {
+    ProfileRedirect::create(['from' => $event->old, 'to' => $event->new]);
+});
+```
+
+The event is dispatched only after the surrounding database transaction commits, so a rolled-back
+change is never announced. Giving a new model its first username does not count as a change.
+
+The trait also adds two model events, so the change can be handled in an observer:
+
+```php
+class UserObserver
+{
+    public function usernameChanging(User $user): bool
+    {
+        return ! $user->isLocked();
+    }
+
+    public function usernameChanged(User $user): void
+    {
+        $old = $user->getOriginal('username');
+    }
+}
+```
+
+- `usernameChanging` runs before the row is written. Return `false` to cancel the save.
+- `usernameChanged` runs right after the row is written, inside the transaction if there is one.
+  `getOriginal()` still returns the old username at that point.
+
+Both can also be registered on the model, like any Eloquent event:
+
+```php
+User::usernameChanged(fn (User $user) => Cache::forget("profile:{$user->getOriginal('username')}"));
+```
+
+Use the observer events for work that belongs with the save, and the `UsernameChanged` event for work
+that must only happen once the change is committed.
+
 ### String aliases
 
 ```php

@@ -16,5 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   passes the format rule.
 - `rules.numeric` option to reject usernames made of digits only.
 - `Concerns\HasUsername` model trait that generates a missing username and lowercases a changed one.
+- `Events\UsernameChanged`, dispatched after commit when a saved username changes.
+- `usernameChanging` and `usernameChanged` model events for observers; `usernameChanging` can
+  cancel the save.
 - `username` and `not_reserved_username` string aliases.
 - Turkish and English messages, publishable config and translations.

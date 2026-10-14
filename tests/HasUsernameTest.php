@@ -6,8 +6,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Schema;
 use XLaravel\Username\Concerns\HasUsername;
+use XLaravel\Username\Events\UsernameChanged;
 
 class HasUsernameTest extends TestCase
 {
@@ -19,6 +22,8 @@ class HasUsernameTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        MemberObserver::$heard = [];
 
         Schema::create('members', function (Blueprint $table) {
             $table->id();
@@ -94,6 +99,127 @@ class HasUsernameTest extends TestCase
         $this->assertSame('ahmet-can', Member::query()->whereKey($member->getKey())->value('username'));
         $this->assertSame('ahmet-can1', Member::query()->whereKey($other->getKey())->value('username'));
     }
+
+    public function testAnnouncesAChangedUsername(): void
+    {
+        $events = $this->recordEvents();
+        $member = Member::create(['username' => 'ahmet']);
+
+        $member->update(['username' => 'Ahmet.Can']);
+
+        $this->assertCount(1, $events);
+        $event = $events[0];
+        $this->assertInstanceOf(UsernameChanged::class, $event);
+        $this->assertTrue($event->model->is($member));
+        $this->assertSame('ahmet', $event->old);
+        $this->assertSame('ahmet.can', $event->new);
+    }
+
+    public function testDoesNotAnnounceTheFirstUsername(): void
+    {
+        $events = $this->recordEvents();
+
+        Member::create(['name' => 'Ahmet Can']);
+
+        $this->assertCount(0, $events);
+    }
+
+    public function testDoesNotAnnounceWhenOtherAttributesChange(): void
+    {
+        $events = $this->recordEvents();
+        $member = Member::create(['username' => 'ahmet']);
+
+        $member->update(['name' => 'Ahmet']);
+        $member->update(['username' => 'AHMET']);
+
+        $this->assertCount(0, $events);
+    }
+
+    public function testAnnouncesOnlyAfterTheTransactionCommits(): void
+    {
+        $events = $this->recordEvents();
+        $member = Member::create(['username' => 'ahmet']);
+
+        DB::transaction(function () use ($member, $events) {
+            $member->update(['username' => 'ahmet.can']);
+
+            $this->assertCount(0, $events);
+        });
+
+        $this->assertCount(1, $events);
+    }
+
+    public function testDoesNotAnnounceARolledBackChange(): void
+    {
+        $events = $this->recordEvents();
+        $member = Member::create(['username' => 'ahmet']);
+
+        DB::beginTransaction();
+        $member->update(['username' => 'ahmet.can']);
+        DB::rollBack();
+
+        $this->assertCount(0, $events);
+    }
+
+    public function testObserverHearsTheChangeWithTheOldUsernameStillReadable(): void
+    {
+        $member = Member::create(['username' => 'ahmet']);
+        Member::observe(MemberObserver::class);
+
+        $member->update(['username' => 'ahmet.can']);
+
+        $this->assertSame([
+            'changing: ahmet -> ahmet.can',
+            'changed: ahmet -> ahmet.can',
+        ], MemberObserver::$heard);
+    }
+
+    public function testObserverIsNotCalledForTheFirstUsernameOrOtherChanges(): void
+    {
+        Member::observe(MemberObserver::class);
+
+        $member = Member::create(['name' => 'Ahmet Can']);
+        $member->update(['name' => 'Ahmet']);
+
+        $this->assertSame([], MemberObserver::$heard);
+    }
+
+    public function testChangingCanCancelTheSave(): void
+    {
+        $member = Member::create(['username' => 'ahmet']);
+        Member::usernameChanging(fn () => false);
+
+        $this->assertFalse($member->update(['username' => 'ahmet.can']));
+        $this->assertSame('ahmet', Member::query()->whereKey($member->getKey())->value('username'));
+    }
+
+    public function testCallbacksCanBeRegisteredOnTheModel(): void
+    {
+        /** @var \ArrayObject<int, string> $heard */
+        $heard = new \ArrayObject;
+        Member::usernameChanged(function (Member $member) use ($heard) {
+            $heard[] = $member->username;
+        });
+
+        Member::create(['username' => 'ahmet'])->update(['username' => 'ahmet.can']);
+
+        $this->assertSame(['ahmet.can'], $heard->getArrayCopy());
+    }
+
+        /**
+     * @return \ArrayObject<int, UsernameChanged>
+     */
+    private function recordEvents(): \ArrayObject
+    {
+        /** @var \ArrayObject<int, UsernameChanged> $events */
+        $events = new \ArrayObject;
+
+        Event::listen(UsernameChanged::class, function (UsernameChanged $event) use ($events) {
+            $events[] = $event;
+        });
+
+        return $events;
+    }
 }
 
 /**
@@ -114,5 +240,28 @@ class Member extends Model
         $name = $this->getAttribute('name');
 
         return is_string($name) ? $name : '';
+    }
+}
+
+class MemberObserver
+{
+    /** @var array<int, string> */
+    public static array $heard = [];
+
+    public function usernameChanging(Member $member): void
+    {
+        self::$heard[] = 'changing: ' . self::original($member) . ' -> ' . $member->username;
+    }
+
+    public function usernameChanged(Member $member): void
+    {
+        self::$heard[] = 'changed: ' . self::original($member) . ' -> ' . $member->username;
+    }
+
+    private static function original(Member $member): string
+    {
+        $username = $member->getOriginal('username');
+
+        return is_string($username) ? $username : '';
     }
 }
