@@ -43,9 +43,11 @@ final class UsernameGenerator
         }
 
         $candidate = $base;
+        $separator = $format->separator();
 
-        for ($suffix = 1; ! self::available($candidate, $taken, $format); $suffix++) {
-            $candidate = rtrim(substr($base, 0, $format->max - strlen((string) $suffix)), '.') . $suffix;
+        for ($suffix = 2; ! self::available($candidate, $taken, $format); $suffix++) {
+            $ending = $separator . $suffix;
+            $candidate = rtrim(substr($base, 0, $format->max - strlen($ending)), '.' . $separator) . $ending;
         }
 
         return $candidate;

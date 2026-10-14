@@ -39,14 +39,19 @@ class UsernameGeneratorTest extends TestCase
 
     public function testGenerateAppendsANumberWhenTaken(): void
     {
-        $taken = ['ahmet', 'ahmet1'];
+        $taken = ['ahmet', 'ahmet-2'];
 
-        $this->assertSame('ahmet2', UsernameGenerator::generate('ahmet', fn (string $name) => in_array($name, $taken, true)));
+        $this->assertSame('ahmet-3', UsernameGenerator::generate('ahmet', fn (string $name) => in_array($name, $taken, true)));
     }
 
     public function testGeneratePadsAShortValue(): void
     {
-        $this->assertSame('s1', UsernameGenerator::generate('s', fn () => false));
+        $this->assertSame('s-2', UsernameGenerator::generate('s', fn () => false));
+    }
+
+    public function testGenerateJoinsTheNumberWithAnUnderscoreWhenHyphensAreOff(): void
+    {
+        $this->assertSame('ahmet_2', UsernameGenerator::generate('ahmet', fn (string $name) => $name === 'ahmet', new Format(hyphens: false)));
     }
 
     public function testGenerateStaysWithinTheMaximumLength(): void
@@ -55,12 +60,12 @@ class UsernameGeneratorTest extends TestCase
 
         $generated = UsernameGenerator::generate($value, fn (string $name) => $name === $value);
 
-        $this->assertSame(str_repeat('a', 29) . '1', $generated);
+        $this->assertSame(str_repeat('a', 28) . '-2', $generated);
     }
 
     public function testGenerateSkipsReservedNames(): void
     {
-        $this->assertSame('admin1', UsernameGenerator::generate('Admin', fn () => false));
+        $this->assertSame('admin-2', UsernameGenerator::generate('Admin', fn () => false));
     }
 
     public function testGenerateKeepsDigitOnlyValuesByDefault(): void

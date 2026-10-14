@@ -50,12 +50,12 @@ class HasUsernameTest extends TestCase
     {
         Member::create(['name' => 'Ahmet Can']);
 
-        $this->assertSame('ahmet-can1', Member::create(['name' => 'Ahmet Can'])->username);
+        $this->assertSame('ahmet-can-2', Member::create(['name' => 'Ahmet Can'])->username);
     }
 
     public function testFallsBackWhenTheSourceIsEmpty(): void
     {
-        $this->assertSame('user1', Member::create(['name' => null])->username);
+        $this->assertSame('user-2', Member::create(['name' => null])->username);
     }
 
     public function testLowercasesAGivenUsername(): void
@@ -93,7 +93,7 @@ class HasUsernameTest extends TestCase
         Member::create(['name' => 'Ahmet Can'])->delete();
 
         $this->assertTrue((new Member)->usernameTaken('ahmet-can'));
-        $this->assertSame('ahmet-can1', Member::create(['name' => 'Ahmet Can'])->username);
+        $this->assertSame('ahmet-can-2', Member::create(['name' => 'Ahmet Can'])->username);
     }
 
     public function testARestoredMemberKeepsItsUsername(): void
@@ -105,7 +105,7 @@ class HasUsernameTest extends TestCase
         $member->restore();
 
         $this->assertSame('ahmet-can', Member::query()->whereKey($member->getKey())->value('username'));
-        $this->assertSame('ahmet-can1', Member::query()->whereKey($other->getKey())->value('username'));
+        $this->assertSame('ahmet-can-2', Member::query()->whereKey($other->getKey())->value('username'));
     }
 
     public function testAnnouncesAChangedUsername(): void
@@ -220,7 +220,7 @@ class HasUsernameTest extends TestCase
 
         $this->assertSame('handle', $account->usernameColumn());
         $this->assertSame('ahmet-can', $account->handle);
-        $this->assertSame('ahmet-can1', Account::create(['name' => 'Ahmet Can'])->handle);
+        $this->assertSame('ahmet-can-2', Account::create(['name' => 'Ahmet Can'])->handle);
         $this->assertSame('ahmet.can', Account::create(['handle' => 'Ahmet.Can'])->handle);
     }
 
@@ -248,7 +248,7 @@ class HasUsernameTest extends TestCase
         Member::create(['name' => 'Ahmet Can']);
         RacyMember::$misses = 1;
 
-        $this->assertSame('ahmet-can1', RacyMember::create(['name' => 'Ahmet Can'])->username);
+        $this->assertSame('ahmet-can-2', RacyMember::create(['name' => 'Ahmet Can'])->username);
     }
 
     public function testGivesUpAfterThreeAttempts(): void
@@ -280,7 +280,7 @@ class HasUsernameTest extends TestCase
             Member::create(['username' => 'mehmet']);
         });
 
-        $this->assertSame(['ahmet-can', 'ahmet-can1', 'mehmet'], Member::query()->orderBy('id')->pluck('username')->all());
+        $this->assertSame(['ahmet-can', 'ahmet-can-2', 'mehmet'], Member::query()->orderBy('id')->pluck('username')->all());
     }
 
         /**

@@ -113,9 +113,10 @@ $username = UsernameGenerator::generate(
 );
 ```
 
-`generate()` normalizes the text, then appends `1`, `2`, … until the candidate is long enough, not
+`generate()` normalizes the text, then appends `-2`, `-3`, … until the candidate is long enough, not
 reserved and not taken — trimming the base so the result never exceeds the maximum length. The
-result always passes the format rule.
+number is joined with a hyphen, or with an underscore when hyphens are off. The result always passes
+the format rule.
 
 `normalize()` does the first half on its own: it transliterates to ASCII (Turkish letters such as
 `ı`, `ş` and `ğ` included), lowercases unless uppercase is allowed, turns runs of disallowed
