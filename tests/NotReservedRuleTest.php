@@ -39,7 +39,7 @@ class NotReservedRuleTest extends TestCase
     {
         App::setLocale('tr');
 
-        $this->assertSame('Bu username kullanılamaz.', $this->validate('admin', new NotReserved)->errors()->first('username'));
+        $this->assertSame('username olarak bu ad kullanılamaz.', $this->validate('admin', new NotReserved)->errors()->first('username'));
     }
 
     public function testNonStringValuesAreLeftToOtherRules(): void

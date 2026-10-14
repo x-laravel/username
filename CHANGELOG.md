@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-10-14
+
+### Fixed
+
+- The reserved-name message no longer starts mid-sentence with the attribute, so attribute names that
+  begin with a capital letter read naturally: "Kullanıcı adı olarak bu ad kullanılamaz." /
+  "This name cannot be used as the username."
+
 ## [1.0.0] - 2026-10-14
 
 ### Added
@@ -24,4 +32,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `username` and `not_reserved_username` string aliases; the latter takes extra names as parameters.
 - Turkish and English messages, publishable config and translations.
 
+[1.0.1]: https://github.com/X-Laravel/username/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/X-Laravel/username/releases/tag/v1.0.0
